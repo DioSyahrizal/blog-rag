@@ -1,4 +1,8 @@
-import { findPublishedBlogsNeedingIndex, getBlogById, markIndexState } from "../db.js";
+import {
+  findPublishedBlogsNeedingIndex,
+  getBlogById,
+  markIndexState,
+} from "../db.js";
 import { chunkBlog } from "./chunking.js";
 import type { EmbeddingProvider } from "./embeddings.js";
 import { BlogQdrantStore } from "./qdrant.js";
@@ -62,13 +66,28 @@ export class IndexingService {
     try {
       await markIndexState(blog.id, { status: "processing", error: null });
       const chunks = chunkBlog(blog.id, blog.content_text);
-      const vectors = chunks.length > 0 ? await this.embeddings.embedMany(chunks.map((chunk) => chunk.text)) : [];
+      const vectors =
+        chunks.length > 0
+          ? await this.embeddings.embedMany(chunks.map((chunk) => chunk.text))
+          : [];
+      console.log("vectors", vectors);
       await this.qdrant.replaceBlogChunks(blog, chunks, vectors);
-      await markIndexState(blog.id, { status: "ready", error: null, indexed: true });
+      await markIndexState(blog.id, {
+        status: "ready",
+        error: null,
+        indexed: true,
+      });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown indexing error";
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" &&
+              error !== null &&
+              "statusText" in error &&
+              typeof error.statusText === "string"
+            ? error.statusText
+            : JSON.stringify(error);
       await markIndexState(blog.id, { status: "failed", error: message });
     }
   }
 }
-

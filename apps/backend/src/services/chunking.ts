@@ -23,8 +23,22 @@ export function chunkBlog(blogId: string, text: string): BlogChunk[] {
       return;
     }
 
+    const digest = crypto
+      .createHash("sha1")
+      .update(`${blogId}:${chunks.length}:${trimmed}`)
+      .digest("hex")
+      .slice(0, 32);
+
+    const pointId = [
+      digest.slice(0, 8),
+      digest.slice(8, 12),
+      digest.slice(12, 16),
+      digest.slice(16, 20),
+      digest.slice(20, 32),
+    ].join("-");
+
     chunks.push({
-      id: crypto.createHash("sha1").update(`${blogId}:${chunks.length}:${trimmed}`).digest("hex"),
+      id: pointId,
       blogId,
       chunkIndex: chunks.length,
       text: trimmed,
@@ -58,4 +72,3 @@ export function chunkBlog(blogId: string, text: string): BlogChunk[] {
 
   return chunks;
 }
-

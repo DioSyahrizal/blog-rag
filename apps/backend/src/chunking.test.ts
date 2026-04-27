@@ -9,5 +9,12 @@ describe("chunkBlog", () => {
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks[0]?.text.length).toBeGreaterThan(20);
   });
-});
 
+  it("generates UUID-shaped point ids for qdrant", () => {
+    const chunks = chunkBlog("blog-1", "Hello world");
+
+    expect(chunks[0]?.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+});
