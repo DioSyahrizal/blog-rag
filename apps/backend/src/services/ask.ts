@@ -2,6 +2,16 @@ import type { AskCitation } from "../types.js";
 import type { EmbeddingProvider } from "./embeddings.js";
 import { BlogQdrantStore, type ScoredChunkPayload } from "./qdrant.js";
 
+interface ChunkHit {
+  blogId: string;
+  title: string;
+  name: string;
+  tags: string[];
+  snippet: string;
+  chunkIndex: number;
+  score: number;
+}
+
 export class AskService {
   constructor(
     private readonly embeddings: EmbeddingProvider,
@@ -12,7 +22,7 @@ export class AskService {
     const questionVector = await this.embeddings.embed(question);
     const results = await this.qdrant.search(questionVector, tags, 6);
 
-    const citations: AskCitation[] = results
+    const chunkHits: ChunkHit[] = results
       .map((result) => {
         const payload = result.payload as ScoredChunkPayload | undefined;
         if (!payload) {
@@ -29,7 +39,64 @@ export class AskService {
           score: typeof result.score === "number" ? result.score : 0,
         };
       })
-      .filter((item): item is AskCitation => item !== null);
+      .filter((item): item is ChunkHit => item !== null);
+
+    const grouped = new Map<
+      string,
+      {
+        title: string;
+        name: string;
+        tags: string[];
+        topScore: number;
+        bestSnippet: string;
+        chunks: ChunkHit[];
+      }
+    >();
+
+    for (const hit of chunkHits) {
+      const existing = grouped.get(hit.blogId);
+      if (!existing) {
+        grouped.set(hit.blogId, {
+          title: hit.title,
+          name: hit.name,
+          tags: hit.tags,
+          topScore: hit.score,
+          bestSnippet: hit.snippet,
+          chunks: [hit],
+        });
+        continue;
+      }
+
+      existing.chunks.push(hit);
+      if (hit.score > existing.topScore) {
+        existing.topScore = hit.score;
+        existing.bestSnippet = hit.snippet;
+      }
+    }
+
+    const rankedBlogs = [...grouped.entries()]
+      .map(([blogId, value]) => ({
+        blogId,
+        title: value.title,
+        name: value.name,
+        tags: value.tags,
+        score: value.topScore,
+        snippet: value.bestSnippet,
+        chunkCount: value.chunks.length,
+        chunks: value.chunks.sort((left, right) => right.score - left.score).slice(0, 2),
+      }))
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 3);
+
+    const citations: AskCitation[] = rankedBlogs.map((blog) => ({
+      blogId: blog.blogId,
+      title: blog.title,
+      name: blog.name,
+      tags: blog.tags,
+      snippet: blog.snippet,
+      score: blog.score,
+      chunkCount: blog.chunkCount,
+    }));
 
     const highConfidence = citations.some((citation) => citation.score >= 0.35);
     if (!highConfidence) {
@@ -39,9 +106,13 @@ export class AskService {
       };
     }
 
-    const context = citations
-      .map((citation, index) => {
-        return `[Source ${index + 1}] ${citation.title} (${citation.name})\nTags: ${citation.tags.join(", ")}\n${citation.snippet}`;
+    const context = rankedBlogs
+      .map((blog, index) => {
+        const snippets = blog.chunks
+          .map((chunk, chunkIndex) => `Snippet ${chunkIndex + 1}: ${chunk.snippet}`)
+          .join("\n");
+
+        return `[Source ${index + 1}] ${blog.title} (${blog.name})\nTags: ${blog.tags.join(", ")}\n${snippets}`;
       })
       .join("\n\n");
 
@@ -49,4 +120,3 @@ export class AskService {
     return { answer, citations };
   }
 }
-

@@ -280,12 +280,15 @@ export function App() {
 
           <div className="citation-list">
             {citations.map((citation) => (
-              <article key={`${citation.blogId}-${citation.chunkIndex}`} className="citation-item">
+              <article key={citation.blogId} className="citation-item">
                 <div className="citation-head">
                   <strong>{citation.title}</strong>
                   <span>{citation.score.toFixed(3)}</span>
                 </div>
                 <p className="citation-name">{citation.name}</p>
+                <p className="muted">
+                  {citation.chunkCount} matched {citation.chunkCount === 1 ? "chunk" : "chunks"}
+                </p>
                 <p>{citation.snippet}</p>
                 <div className="tag-row">
                   {citation.tags.map((tag) => (
@@ -302,4 +305,3 @@ export function App() {
     </div>
   );
 }
-

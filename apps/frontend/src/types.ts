@@ -22,7 +22,6 @@ export interface AskCitation {
   name: string;
   tags: string[];
   snippet: string;
-  chunkIndex: number;
   score: number;
+  chunkCount: number;
 }
-
